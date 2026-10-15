@@ -228,7 +228,7 @@ module hart #(
 
         dle iDataLoadExtend(
             .i_rdata(i_dmem_rdata), .i_byte_offset(alu_result[1:0]),
-            .i_funct3(funct3), .o_rdata(dmem_ldata)
+            .i_funct3(funct3), .o_ldata(dmem_ldata)
         );
 
     // wiring
