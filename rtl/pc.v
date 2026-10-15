@@ -9,7 +9,7 @@ module pc #(
     output reg [31:0] o_pc
 );
 
-    always @(posedge i_clk or posedge i_rst) begin
+    always @(posedge i_clk) begin
         if (i_rst) begin
             o_pc <= RESET_ADDR;
         end else begin
@@ -18,3 +18,5 @@ module pc #(
     end
 
 endmodule
+
+`default_nettype wire
