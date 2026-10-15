@@ -18,3 +18,5 @@ module pc #(
     end
 
 endmodule
+
+`default_nettype wire
