@@ -40,7 +40,33 @@ module control (
     wire opcode_system  = (opcode == 7'b1110011); // ebreak
 
     //legality check
-    wire legal = 1; //temp
+    wire funct7_zero = (funct7 == 7'b0000000);
+    wire funct7_alt = (funct7 == 7'b0100000); //for sub/sra/srai 
+
+    //funct7 is 0 unless sub and sra which use funct7_alt
+    wire r_legal = funct7_zero | (funct7_alt & ((funct3 == 3'b000) | (funct3 == 3'b101)));
+    //slli needs funct7=0 and srli/srai need zero and alt respectively; otherwise don't care(use immediate)
+    wire i_alu_legal = (funct3 == 3'b001) ? funct7_zero : 
+                        (funct3 == 3'b101) ? (funct7_zero | funct7_alt) :
+                        1'b1;
+    wire i_load_legal = (funct3 != 3'b011) & (funct3 != 3'b110) & (funct3 != 3'b111);
+    wire i_jalr_legal = (funct3 == 3'b000);
+    wire s_legal = (funct3 == 3'b000) | (funct3 == 3'b001) | (funct3 == 3'b010);
+    wire b_legal = (funct3 != 3'b010) & (funct3 != 3'b011);
+    wire system_legal = (funct3 == 3'b000);
+    
+    wire legal = (opcode_r & r_legal) |
+                 (opcode_i_alu & i_alu_legal) |
+                 (opcode_i_load & i_load_legal) |
+                 (opcode_i_jalr & i_jalr_legal) |
+                 (opcode_s & s_legal) |
+                 (opcode_b & b_legal) |
+                 (opcode_system & system_legal) |
+                 opcode_u_lui |
+                 opcode_u_auipc |
+                 opcode_j;
+
+    assign o_illegal = ~legal;
 
     ////////////////////////////////////////////DATAPATH CONTROLS///////////////////////////////////////////////////
     //format for immediate generator
@@ -81,9 +107,10 @@ module control (
     wire branch_cond_met = opcode_b & legal & 
                             ((funct3[2] ? i_alu_slt : i_alu_eq) ^ funct3[0]);
 
-    assign o_pc_sel = opcode_i_jalr ? 2'b10 :   // JALR instruction
-                        (opcode_j | branch_cond_met) ? 2'b01 :  //PC+imm
-                        2'b00;  //PC+4 for all other cases
+    assign o_pc_sel = !legal ? 2'b00 :
+                       opcode_i_jalr ? 2'b10 :   // JALR instruction
+                       (opcode_j | branch_cond_met) ? 2'b01 :  //PC+imm
+                       2'b00;  //PC+4 for all other cases
 
     assign o_halt = opcode_system & legal;
 endmodule
