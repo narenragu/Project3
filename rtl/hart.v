@@ -276,7 +276,7 @@ module hart #(
         assign target_misaligned =
             ((pc_sel == 2'b01) || (pc_sel == 2'b10)) && (|pc_target[1:0]);
         assign trap = illegal || data_misaligned || target_misaligned;
-        assign commit = !i_rst && !trap && !halt;
+        assign commit = !i_rst && !trap;
         assign pc_nxt = pc_target;
 
         assign o_retire_valid = !i_rst;
