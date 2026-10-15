@@ -218,8 +218,9 @@ module hart #(
             .i_inst(instr), .i_format(format), .o_immediate(immediate)
         );
 
-        dsr iDataStoreReplicate(
-            .i_rs2(rs2), .i_funct3(funct3), .o_wdata(dmem_wdata)
+        dsr iDataStoreAlign(
+            .i_rs2(rs2), .i_byte_offset(alu_result[1:0]),
+            .i_funct3(funct3), .o_wdata(dmem_wdata)
         );
 
         maskgen iMaskGenerator(
