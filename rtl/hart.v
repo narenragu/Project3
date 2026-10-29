@@ -133,153 +133,289 @@ module hart #(
     ,`RVFI_OUTPUTS,
 `endif
 );
-    // signal instantiation
-
+    /////////////////////////////////////////////////////signal instantiation///////////////////////////////////////////
+    //IF:
         // pc
         wire [31:0] pc;
         wire [31:0] instr;
+        wire [31:0] pc_plus_4;
         wire [31:0] pc_nxt;
         reg [31:0] pc_target;
 
-        // alu
-        wire [2:0] alu_opsel;
-        wire alu_sub;
-        wire alu_unsigned;
-        wire alu_arith;
-        reg [31:0] alu_op1;
-        reg [31:0] alu_op2;
-        wire [31:0] alu_result;
-        wire alu_eq;
-        wire alu_slt;
+        //if/id reg
+        wire if_valid;
+        wire id_valid;
+        wire [31:0] id_pc;
+        wire [31:0] id_instr;
 
-        // control
-        wire [5:0] format;
-        wire dmem_ren;
-        wire dmem_wen;
-        wire rf_wen;
-        wire [1:0] rd_wsel;
-        wire [1:0] op1_sel;
-        wire op2_sel;
-        wire [1:0] pc_sel;
-        wire illegal;
-        wire halt;
-
-        wire [2:0] funct3 = instr[14:12];
+    //ID:
+        //decoder
+        wire [1:0] id_op1_sel;
+        wire id_op2_sel;
+        wire [2:0] id_alu_opsel;
+        wire id_alu_sub;
+        wire id_alu_unsigned;
+        wire id_alu_arith;
+        wire id_branch;
+        wire id_jal;
+        wire id_jalr;
+        wire id_dmem_ren;
+        wire id_dmem_wen;
+        wire id_rf_wen;
+        wire [1:0] id_rd_wsel;
+        wire id_halt;
+        wire id_illegal;
+        wire [5:0] id_format;
 
         // immediate generator
         wire [31:0] immediate;
 
-        // register file
-        wire [31:0] rs1;
-        wire [31:0] rs2;
+        // register file read data
+        wire [31:0] id_rf_rs1;
+        wire [31:0] id_rf_rs2;
 
-        // data memory
-        wire [31:0] dmem_wdata;
-        wire [3:0] dmem_mask;
+        //hazard detect (later)
 
-        // data load extend
-        wire [31:0] dmem_ldata;
+        //id/ex reg
+        wire ex_valid;
+        wire [31:0] ex_pc;
+        wire [31:0] ex_instr;
+        wire [31:0] ex_rs1_rdata;
+        wire [31:0] ex_rs2_rdata;
+        wire [31:0] ex_imm;
 
-        // extra
-        reg [31:0] rd_wdata;
-        wire data_misaligned;
-        wire target_misaligned;
-        wire trap;
-        wire commit;
+        wire [2:0] ex_alu_opsel;
+        wire [1:0] ex_op1_sel;
+        wire ex_op2_sel;
+        wire ex_alu_sub;
+        wire ex_alu_unsigned;
+        wire ex_alu_arith;
 
-    // module instantiation
-        alu iALU(
-            .i_opsel(alu_opsel), .i_sub(alu_sub), .i_unsigned(alu_unsigned), .i_arith(alu_arith), .i_op1(alu_op1), .i_op2(alu_op2),
-            .o_result(alu_result), .o_eq(alu_eq), .o_slt(alu_slt)
-        );
+        wire ex_dmem_ren;
+        wire ex_dmem_wen;
+        wire [1:0] ex_rd_wsel;
+        wire ex_rf_wen;
+        wire ex_branch;
+        wire ex_jal;
+        wire ex_jalr;
+        wire ex_halt;
+        wire ex_illegal;
+    
+    //EX:
+        //ex control module
+        wire [1:0] pc_sel;
+        wire ex_trap;
 
-        control iControlUnit(
-            .i_instr(instr), .i_alu_eq(alu_eq), .i_alu_slt(alu_slt),
-            .o_format(format), .o_op1_sel(op1_sel), .o_op2_sel(op2_sel),
-            .o_alu_opsel(alu_opsel), .o_alu_sub(alu_sub), .o_alu_arith(alu_arith),
-            .o_alu_unsigned(alu_unsigned), .o_rf_wen(rf_wen), .o_rd_wsel(rd_wsel),
-            .o_dmem_ren(dmem_ren), .o_dmem_wen(dmem_wen), .o_pc_sel(pc_sel),
-            .o_halt(halt), .o_illegal(illegal)
-        );
+        //alu
+        wire alu_eq;
+        wire alu_slt;
+        wire [31:0] ex_alu_result;
 
+        //alu op
+        reg [31:0] alu_op1;
+        reg [31:0] alu_op2;
+
+        //pc + imm (branch/jal)
+        wire [31:0] ex_pc_plus_imm;
+
+        //ex/mem reg
+        wire mem_valid;
+        wire [31:0] mem_pc;
+        wire [31:0] mem_instr;
+        wire [31:0] mem_alu_result;
+        wire [31:0] mem_rs2_rdata;
+        wire mem_dmem_ren;
+        wire mem_dmem_wen;
+        wire [1:0] mem_rd_wsel;
+        wire mem_rf_wen;
+        wire mem_halt;
+        wire mem_trap;
+
+    //MEM:
+        //data store replicate
+        wire [31:0] mem_wdata;
+        
+        //mask gen
+        wire [3:0] mem_mask;
+
+        //data load extend
+        wire [31:0] mem_ldata;
+
+        //mem/wb reg
+        wire wb_valid;
+        wire [31:0] wb_pc;
+        wire [31:0] wb_instr;
+        wire wb_trap;
+        wire [1:0] wb_rd_wsel;
+        wire wb_rf_wen;
+        wire [31:0] wb_ldata;
+        wire [31:0] wb_alu_result;
+
+    //WB:
+        //register file write back data
+        reg [31:0] wb_rd_wdata;
+
+    ////////////////////////////////////////////////module instantiation///////////////////////////////////////////////
+    //IF:
         pc #(.RESET_ADDR(RESET_ADDR)) iProgramCounter(
             .i_clk(i_clk), .i_rst(i_rst), .i_pc_nxt(pc_nxt),
             .o_pc(pc)
         );
 
-        rf #(.BYPASS_EN(0)) iRegisterFile(
+        reg_if_id iRegIFID(
             .i_clk(i_clk), .i_rst(i_rst),
-            .i_rs1_raddr(instr[19:15]), .o_rs1_rdata(rs1),
-            .i_rs2_raddr(instr[24:20]), .o_rs2_rdata(rs2),
-            .i_rd_wen(rf_wen && commit), .i_rd_waddr(instr[11:7]), .i_rd_wdata(rd_wdata)
+            .if_valid(if_valid), .if_pc(pc), .if_instr(instr),
+            .id_valid(id_valid), .id_pc(id_pc), .id_instr(id_instr)
+        );
+
+    //ID: 
+        decoder iDecoder(
+            .i_instr(id_instr),
+            .o_op1_sel(id_op1_sel), .o_op2_sel(id_op2_sel),
+            .o_alu_opsel(id_alu_opsel), .o_alu_sub(id_alu_sub), .o_alu_unsigned(id_alu_unsigned), .o_alu_arith(id_alu_arith),
+            .o_branch(id_branch), .o_jal(id_jal), .o_jalr(id_jalr),
+            .o_dmem_ren(id_dmem_ren), .o_dmem_wen(id_dmem_wen),
+            .o_rf_wen(id_rf_wen), .o_rd_wsel(id_rd_wsel),
+            .o_halt(id_halt), .o_illegal(id_illegal), .o_format(id_format)
         );
 
         imm iImmediateGenerator(
-            .i_inst(instr), .i_format(format), .o_immediate(immediate)
+            .i_inst(id_instr), .i_format(id_format), .o_immediate(immediate)
         );
 
-        dsr iDataStoreAlign(
-            .i_rs2(rs2), .i_byte_offset(alu_result[1:0]),
-            .i_funct3(funct3), .o_wdata(dmem_wdata)
+        rf #(.BYPASS_EN(1)) iRegisterFile(
+            .i_clk(i_clk), .i_rst(i_rst),
+            .i_rs1_raddr(id_instr[19:15]), .o_rs1_rdata(id_rf_rs1),
+            .i_rs2_raddr(id_instr[24:20]), .o_rs2_rdata(id_rf_rs2),
+            .i_rd_wen(wb_rf_wen && wb_valid && !wb_trap), .i_rd_waddr(wb_instr[11:7]), .i_rd_wdata(wb_rd_wdata)
+        );      //rf write from WB stage
+
+        reg_id_ex iRegIDEX(
+            .i_clk(i_clk), .i_rst(i_rst),
+            .id_valid(id_valid), .id_pc(id_pc), .id_instr(id_instr),
+            .id_op1_sel(id_op1_sel), .id_op2_sel(id_op2_sel),
+            .id_alu_opsel(id_alu_opsel), .id_alu_sub(id_alu_sub), .id_alu_unsigned(id_alu_unsigned), .id_alu_arith(id_alu_arith),
+            .id_immediate(immediate),
+            .id_branch(id_branch), .id_jal(id_jal), .id_jalr(id_jalr),
+            .id_dmem_ren(id_dmem_ren), .id_dmem_wen(id_dmem_wen),
+            .id_rf_wen(id_rf_wen), .id_rd_wsel(id_rd_wsel),
+            .id_rs1_rdata(id_rf_rs1), .id_rs2_rdata(id_rf_rs2),
+            .id_halt(id_halt), .id_illegal(id_illegal),
+            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_instr(ex_instr),
+            .ex_op1_sel(ex_op1_sel), .ex_op2_sel(ex_op2_sel),
+            .ex_alu_opsel(ex_alu_opsel), .ex_alu_sub(ex_alu_sub), .ex_alu_unsigned(ex_alu_unsigned), .ex_alu_arith(ex_alu_arith),
+            .ex_immediate(ex_imm),
+            .ex_branch(ex_branch), .ex_jal(ex_jal), .ex_jalr(ex_jalr),
+            .ex_dmem_ren(ex_dmem_ren), .ex_dmem_wen(ex_dmem_wen),
+            .ex_rf_wen(ex_rf_wen), .ex_rd_wsel(ex_rd_wsel),
+            .ex_rs1_rdata(ex_rs1_rdata), .ex_rs2_rdata(ex_rs2_rdata),
+            .ex_halt(ex_halt), .ex_illegal(ex_illegal)
+        );
+
+    //EX:
+        ex_control iEXControl(
+            .i_valid(ex_valid), .i_pc_plus_imm(ex_pc_plus_imm[1:0]), .i_illegal(ex_illegal),
+            .i_dmem_ren(ex_dmem_ren), .i_dmem_wen(ex_dmem_wen),
+            .i_funct3(ex_instr[14:12]), .i_slt(alu_slt), .i_eq(alu_eq),
+            .i_alu_res(ex_alu_result[1:0]), .i_branch(ex_branch), .i_jal(ex_jal), .i_jalr(ex_jalr),
+            .o_pc_sel(pc_sel), .o_trap(ex_trap)
+        );
+
+        alu iALU(
+            .i_opsel(ex_alu_opsel), .i_sub(ex_alu_sub), .i_unsigned(ex_alu_unsigned), .i_arith(ex_alu_arith), .i_op1(alu_op1), .i_op2(alu_op2),
+            .o_result(ex_alu_result), .o_eq(alu_eq), .o_slt(alu_slt)
+        );
+        
+        reg_ex_mem iRegEXMEM(
+            .i_clk(i_clk), .i_rst(i_rst),
+            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_instr(ex_instr),
+            .ex_alu_result(ex_alu_result), .ex_rs2_rdata(ex_rs2_rdata),
+            .ex_dmem_ren(ex_dmem_ren), .ex_dmem_wen(ex_dmem_wen),
+            .ex_rf_wen(ex_rf_wen), .ex_rd_wsel(ex_rd_wsel),
+            .ex_halt(ex_halt), .ex_trap(ex_trap),
+            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_instr(mem_instr),
+            .mem_alu_result(mem_alu_result), .mem_rs2_rdata(mem_rs2_rdata),
+            .mem_dmem_ren(mem_dmem_ren), .mem_dmem_wen(mem_dmem_wen),
+            .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
+            .mem_halt(mem_halt), .mem_trap(mem_trap)
+        );
+
+    //MEM:
+        dsr iDataStoreReplicate(
+            .i_rs2(mem_rs2_rdata),
+            .i_funct3(mem_instr[14:12]), .o_wdata(mem_wdata)
         );
 
         maskgen iMaskGenerator(
-            .i_byte_offset(alu_result[1:0]), .i_funct3(funct3), .o_mask(dmem_mask)
+            .i_byte_offset(mem_alu_result[1:0]), .i_funct3(mem_instr[14:12]), .o_mask(mem_mask)
         );
 
         dle iDataLoadExtend(
-            .i_rdata(i_dmem_rdata), .i_byte_offset(alu_result[1:0]),
-            .i_funct3(funct3), .o_ldata(dmem_ldata)
+            .i_rdata(i_dmem_rdata), .i_byte_offset(mem_alu_result[1:0]),
+            .i_funct3(mem_instr[14:12]), .o_ldata(mem_ldata)
         );
 
-    // wiring
+        reg_mem_wb iRegMEMWB(
+            .i_clk(i_clk), .i_rst(i_rst),
+            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_instr(mem_instr),
+            .mem_alu_result(mem_alu_result), .mem_ldata(mem_ldata),
+            .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
+            .mem_trap(mem_trap),
+            .wb_valid(wb_valid), .wb_pc(wb_pc), .wb_instr(wb_instr),
+            .wb_alu_result(wb_alu_result), .wb_ldata(wb_ldata),
+            .wb_rf_wen(wb_rf_wen), .wb_rd_wsel(wb_rd_wsel),
+            .wb_trap(wb_trap)
+        );
+
+    ///////////////////////////////////////////////wiring//////////////////////////////////////
         always @(*) begin
-            // op1
-            case (op1_sel)
-                2'b00 : alu_op1 = rs1;
-                2'b01 : alu_op1 = pc;
-                2'b10 : alu_op1 = 32'd0;
-                default : alu_op1 = 32'bx;
-            endcase
-
-            // op2
-            alu_op2 = (op2_sel) ? immediate : rs2;
-
-            // pc_nxt (TODO: pull out adder and mux inputs)
+            //pc next mux
             case (pc_sel)
-                2'b00 : pc_target = pc + 32'd4;
-                2'b01 : pc_target = pc + immediate;
-                2'b10 : pc_target = {alu_result[31:1], 1'b0};
-                default : pc_target = 32'bx;
+                2'b00 : pc_target = pc_plus_4;
+                2'b01 : pc_target = ex_pc_plus_imm;
+                2'b10 : pc_target = {ex_alu_result[31:1], 1'b0};
+                default : pc_target = pc_plus_4;
+            endcase
+            
+            //op1 select
+            case (ex_op1_sel)
+                2'b00 : alu_op1 = ex_rs1_rdata;
+                2'b01 : alu_op1 = ex_pc;
+                2'b10 : alu_op1 = 32'd0;
+                default : alu_op1 = ex_rs1_rdata;
             endcase
 
-            // rd_wdata
-            case (rd_wsel)
-                2'b00 : rd_wdata = alu_result;
-                2'b01 : rd_wdata = dmem_ldata;
-                2'b10 : rd_wdata = pc + 32'd4;
-                default : rd_wdata = 32'bx;
+            //op2 select
+            alu_op2 = (ex_op2_sel) ? ex_imm : ex_rs2_rdata;
+
+            //wb rd_wdata
+            case (wb_rd_wsel)
+                2'b00 : wb_rd_wdata = wb_alu_result;
+                2'b01 : wb_rd_wdata = wb_ldata;
+                2'b10 : wb_rd_wdata = wb_pc + 32'd4;
+                default : wb_rd_wdata = 32'bx;
             endcase
         end
 
-        assign instr = i_imem_rdata;
-        assign o_imem_raddr = pc;
-        assign o_dmem_addr = {alu_result[31:2], 2'b00};
-        assign o_dmem_wdata = dmem_wdata;
-        assign o_dmem_mask = dmem_mask;
-        assign o_dmem_ren = dmem_ren && commit;
-        assign o_dmem_wen = dmem_wen && commit;
+        assign if_valid = 1'b1; //always on for 1st hazardless version
 
-        assign data_misaligned = (dmem_ren || dmem_wen) &&
-            (((funct3 == 3'b001 || funct3 == 3'b101) && alu_result[0]) ||
-             ((funct3 == 3'b010) && (|alu_result[1:0])));
-
-        assign target_misaligned =
-            ((pc_sel == 2'b01) || (pc_sel == 2'b10)) && (|pc_target[1:0]);
-        assign trap = illegal || data_misaligned || target_misaligned;
-        assign commit = !i_rst && !trap;
+        //pc mux
+        assign pc_plus_4 = pc + 32'd4;
+        assign ex_pc_plus_imm = ex_pc + ex_imm;
         assign pc_nxt = pc_target;
 
+        //imem interface
+        assign instr = i_imem_rdata;
+        assign o_imem_raddr = pc;
+
+        //dmem interface
+        assign o_dmem_addr = {mem_alu_result[31:2], 2'b00};
+        assign o_dmem_wdata = mem_wdata;
+        assign o_dmem_mask = mem_mask;
+        assign o_dmem_ren = mem_dmem_ren && mem_valid && !mem_trap;
+        assign o_dmem_wen = mem_dmem_wen && mem_valid && !mem_trap;
+
+        //retire
         assign o_retire_valid = !i_rst;
         assign o_retire_inst = instr;
         assign o_retire_trap = trap;
@@ -288,8 +424,8 @@ module hart #(
         assign o_retire_rs2_raddr = instr[24:20];
         assign o_retire_rs1_rdata = rs1;
         assign o_retire_rs2_rdata = rs2;
-        assign o_retire_rd_waddr = (rf_wen && commit) ? instr[11:7] : 5'd0;
-        assign o_retire_rd_wdata = rd_wdata;
+        assign o_retire_rd_waddr = (wb_rf_wen && wb_valid && !wb_trap) ? wb_instr[11:7] : 5'd0;
+        assign o_retire_rd_wdata = wb_rd_wdata;
         assign o_retire_pc = pc;
         assign o_retire_next_pc = pc_nxt;
 endmodule
