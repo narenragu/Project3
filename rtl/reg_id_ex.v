@@ -28,6 +28,8 @@ module reg_id_ex (
     input wire [31:0] id_rs1_rdata,
     input wire [31:0] id_rs2_rdata,
 
+    input wire i_stall,
+
     output reg ex_valid,
     output reg [31:0] ex_inst,
     output reg [31:0] ex_pc,
@@ -77,7 +79,7 @@ module reg_id_ex (
             ex_rs1_rdata <= 32'b0;
             ex_rs2_rdata <= 32'b0;
         end else if(i_stall) begin
-            ex_valid <= 1'b1;
+            ex_valid <= 1'b0;
             ex_inst <= 32'h13; // addi x0, x0, 0
             ex_pc <= 32'b0;
             ex_op1_sel <= 2'b0;

@@ -28,6 +28,7 @@ module ex_control (
             (((i_funct3 == 3'b001 || i_funct3 == 3'b101) && i_alu_res[0]) ||
              ((i_funct3 == 3'b010) && (|i_alu_res[1:0])));
 
+    wire branch_cond_met = i_branch && ((i_funct3[2] ? i_slt : i_eq) ^ i_funct3[0]);
     //for jal and branch, check if pc+imm is word-aligned
     assign target_misaligned = ((i_jal || branch_cond_met) && (|i_pc_plus_imm)) ||
             (i_jalr && i_alu_res[1]);
@@ -39,7 +40,7 @@ module ex_control (
     //branches are split into BEQ, BLT, BLTU, and their inverses (BNE, BGE, BGEU)
     //the unsigned comparison decision for the ALU is already determined by o_alu_unsigned
     //therefore the comparison can be chosen simply from funct3[2](0 = equality, 1 = less than), and funct3[0] to invert
-    wire branch_cond_met = i_branch && ((i_funct3[2] ? i_slt : i_eq) ^ i_funct3[0]);
+    
     assign o_pc_sel = (!i_valid || o_trap) ? 2'b00 :
                        i_jalr ? 2'b10 :   // JALR instruction
                        (i_jal | branch_cond_met) ? 2'b01 :  //PC+imm

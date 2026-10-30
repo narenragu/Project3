@@ -256,7 +256,7 @@ module hart #(
         reg [31:0] wb_rd_wdata;
 
     //HAZARD:
-        reg stall;
+        wire stall;
 
     ////////////////////////////////////////////////module instantiation///////////////////////////////////////////////
     //IF:
@@ -268,7 +268,7 @@ module hart #(
         reg_if_id iRegIFID(
             .i_clk(i_clk), .i_rst(i_rst),
             .if_valid(if_valid), .if_pc(pc), .if_inst(instr), .i_stall(stall),
-            .id_valid(id_valid), .id_pc(id_pc), .id_instr(id_instr)
+            .id_valid(id_valid), .id_pc(id_pc), .id_inst(id_instr)
         );
 
     //ID: 
@@ -295,7 +295,7 @@ module hart #(
 
         reg_id_ex iRegIDEX(
             .i_clk(i_clk), .i_rst(i_rst),
-            .id_valid(id_valid), .id_pc(id_pc), .id_instr(id_instr),
+            .id_valid(id_valid), .id_pc(id_pc), .id_inst(id_instr),
             .id_op1_sel(id_op1_sel), .id_op2_sel(id_op2_sel),
             .id_alu_opsel(id_alu_opsel), .id_alu_sub(id_alu_sub), .id_alu_unsigned(id_alu_unsigned), .id_alu_arith(id_alu_arith),
             .id_immediate(immediate),
@@ -305,7 +305,7 @@ module hart #(
             .id_rs1_rdata(id_rf_rs1), .id_rs2_rdata(id_rf_rs2),
             .i_stall(stall),
             .id_halt(id_halt), .id_illegal(id_illegal),
-            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_instr(ex_instr),
+            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_inst(ex_instr),
             .ex_op1_sel(ex_op1_sel), .ex_op2_sel(ex_op2_sel),
             .ex_alu_opsel(ex_alu_opsel), .ex_alu_sub(ex_alu_sub), .ex_alu_unsigned(ex_alu_unsigned), .ex_alu_arith(ex_alu_arith),
             .ex_immediate(ex_imm),
@@ -332,13 +332,13 @@ module hart #(
         
         reg_ex_mem iRegEXMEM(
             .i_clk(i_clk), .i_rst(i_rst),
-            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_instr(ex_instr),
-            .ex_alu_result(ex_alu_result), .ex_rs2_rdata(ex_rs2_rdata),
+            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_inst(ex_instr),
+            .ex_alu_result(ex_alu_result), .ex_rs2_data(ex_rs2_rdata),
             .ex_dmem_ren(ex_dmem_ren), .ex_dmem_wen(ex_dmem_wen),
             .ex_rf_wen(ex_rf_wen), .ex_rd_wsel(ex_rd_wsel),
             .ex_halt(ex_halt), .ex_trap(ex_trap),
-            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_instr(mem_instr),
-            .mem_alu_result(mem_alu_result), .mem_rs2_rdata(mem_rs2_rdata),
+            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_inst(mem_instr),
+            .mem_alu_result(mem_alu_result), .mem_rs2_data(mem_rs2_rdata),
             .mem_dmem_ren(mem_dmem_ren), .mem_dmem_wen(mem_dmem_wen),
             .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
             .mem_halt(mem_halt), .mem_trap(mem_trap)
@@ -361,19 +361,19 @@ module hart #(
 
         reg_mem_wb iRegMEMWB(
             .i_clk(i_clk), .i_rst(i_rst),
-            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_instr(mem_instr),
-            .mem_alu_result(mem_alu_result), .mem_ldata(mem_ldata),
+            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_inst(mem_instr),
+            .mem_alu_result(mem_alu_result), .mem_load_data(mem_ldata),
             .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
             .mem_trap(mem_trap),
-            .wb_valid(wb_valid), .wb_pc(wb_pc), .wb_instr(wb_instr),
-            .wb_alu_result(wb_alu_result), .wb_ldata(wb_ldata),
+            .wb_valid(wb_valid), .wb_pc(wb_pc), .wb_inst(wb_instr),
+            .wb_alu_result(wb_alu_result), .wb_load_data(wb_ldata),
             .wb_rf_wen(wb_rf_wen), .wb_rd_wsel(wb_rd_wsel),
             .wb_trap(wb_trap)
         );
     
     //HAZARD:
         hazard_detect iHazard(
-            .i_id_inst(id_inst),
+            .i_id_inst(id_instr),
             .i_ex_rf_wen(ex_rf_wen), .i_ex_inst(ex_instr),
             .i_mem_rf_wen(mem_rf_wen), .i_mem_inst(mem_instr),
             .o_hazard(stall)
@@ -428,17 +428,17 @@ module hart #(
         assign o_dmem_wen = mem_dmem_wen && mem_valid && !mem_trap;
 
         //retire
-        assign o_retire_valid = !i_rst;
-        assign o_retire_inst = instr;
-        assign o_retire_trap = trap;
-        assign o_retire_halt = halt;
-        assign o_retire_rs1_raddr = instr[19:15];
-        assign o_retire_rs2_raddr = instr[24:20];
-        assign o_retire_rs1_rdata = rs1;
-        assign o_retire_rs2_rdata = rs2;
+        assign o_retire_valid = wb_valid && !i_rst;
+        assign o_retire_inst = wb_instr;
+        assign o_retire_trap = wb_trap;
+        assign o_retire_halt = wb_halt;
+        assign o_retire_rs1_raddr = mem_wb_instr[19:15];
+        assign o_retire_rs2_raddr = mem_wb_instr[24:20];
+        assign o_retire_rs1_rdata = rs1; // ?
+        assign o_retire_rs2_rdata = rs2; // ?
         assign o_retire_rd_waddr = (wb_rf_wen && wb_valid && !wb_trap) ? wb_instr[11:7] : 5'd0;
         assign o_retire_rd_wdata = wb_rd_wdata;
-        assign o_retire_pc = pc;
+        assign o_retire_pc = wb_pc;
         assign o_retire_next_pc = pc_nxt;
 endmodule
 
