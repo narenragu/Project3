@@ -121,6 +121,12 @@ module hart #(
     // writeback stage by this instruction. If rd is 5'd0, this field is
     // ignored and can be treated as a don't care.
     output wire [31:0] o_retire_rd_wdata,
+    output wire [31:0] o_retire_dmem_addr,
+    output wire [ 3:0] o_retire_dmem_mask,
+    output wire        o_retire_dmem_ren,
+    output wire        o_retire_dmem_wen,
+    output wire [31:0] o_retire_dmem_rdata,
+    output wire [31:0] o_retire_dmem_wdata,
     // The current program counter of the instruction being retired - i.e.
     // the instruction memory address that the instruction was fetched from.
     output wire [31:0] o_retire_pc,
@@ -258,23 +264,37 @@ module hart #(
         wire [31:0] wb_rs2_rdata;
         wire wb_halt;
 
+        wire [31:0] wb_dmem_addr;
+        wire [ 3:0] wb_dmem_mask;
+        wire wb_dmem_ren;
+        wire wb_dmem_wen;
+        wire [31:0] wb_dmem_rdata;
+        wire [31:0] wb_dmem_wdata;
+
     //WB:
         //register file write back data
         reg [31:0] wb_rd_wdata;
 
     //HAZARD:
-        wire stall;
+        wire raw_hazard;
+        wire data_stall;
+
+        wire id_control;
+        wire ex_control_pending;
+        wire control_wait;
+        wire ex_redirect;
+        wire pc_stall;
 
     ////////////////////////////////////////////////module instantiation///////////////////////////////////////////////
     //IF:
         pc #(.RESET_ADDR(RESET_ADDR)) iProgramCounter(
-            .i_clk(i_clk), .i_rst(i_rst), .i_pc_nxt(pc_nxt), .i_stall(stall),
+            .i_clk(i_clk), .i_rst(i_rst), .i_pc_nxt(pc_nxt), .i_stall(pc_stall),
             .o_pc(pc)
         );
 
         reg_if_id iRegIFID(
             .i_clk(i_clk), .i_rst(i_rst),
-            .if_valid(if_valid), .if_pc(pc), .if_inst(instr), .i_stall(stall),
+            .if_valid(if_valid), .if_pc(pc), .if_inst(instr), .i_stall(data_stall), .i_clear_valid(control_wait),
             .id_valid(id_valid), .id_pc(id_pc), .id_inst(id_instr)
         );
 
@@ -310,7 +330,7 @@ module hart #(
             .id_dmem_ren(id_dmem_ren), .id_dmem_wen(id_dmem_wen),
             .id_rf_wen(id_rf_wen), .id_rd_wsel(id_rd_wsel),
             .id_rs1_rdata(id_rf_rs1), .id_rs2_rdata(id_rf_rs2),
-            .i_stall(stall),
+            .i_stall(data_stall),
             .id_halt(id_halt), .id_illegal(id_illegal),
             .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_inst(ex_instr),
             .ex_op1_sel(ex_op1_sel), .ex_op2_sel(ex_op2_sel),
@@ -345,15 +365,15 @@ module hart #(
             .ex_rf_wen(ex_rf_wen), .ex_rd_wsel(ex_rd_wsel),
             .ex_halt(ex_halt), .ex_trap(ex_trap),
             .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_next_pc(mem_next_pc), .mem_inst(mem_instr),
-            .mem_alu_result(mem_alu_result), .mem_rs1_rdata(mem_rs1_rdata), .mem_rs2_data(mem_rs2_rdata),
+            .mem_alu_result(mem_alu_result), .mem_rs1_rdata(mem_rs1_rdata), .mem_rs2_rdata(mem_rs2_rdata),
             .mem_dmem_ren(mem_dmem_ren), .mem_dmem_wen(mem_dmem_wen),
             .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
             .mem_halt(mem_halt), .mem_trap(mem_trap)
         );
 
     //MEM:
-        dsr iDataStoreReplicate(
-            .i_rs2(mem_rs2_rdata),
+        dss iDataStoreShifter(
+            .i_rs2(mem_rs2_rdata), .i_byte_offset(mem_alu_result[1:0]),
             .i_funct3(mem_instr[14:12]), .o_wdata(mem_wdata)
         );
 
@@ -372,20 +392,24 @@ module hart #(
             .mem_alu_result(mem_alu_result), .mem_load_data(mem_ldata),
             .mem_rs1_rdata(mem_rs1_rdata), .mem_rs2_rdata(mem_rs2_rdata),
             .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
+            .mem_dmem_addr(o_dmem_addr), .mem_dmem_mask(o_dmem_mask), .mem_dmem_ren(o_dmem_ren), .mem_dmem_wen(o_dmem_wen),
+            .mem_dmem_rdata(i_dmem_rdata), .mem_dmem_wdata(o_dmem_wdata),
             .mem_trap(mem_trap), .mem_halt(mem_halt),
             .wb_valid(wb_valid), .wb_pc(wb_pc), .wb_next_pc(wb_next_pc), .wb_inst(wb_instr),
             .wb_alu_result(wb_alu_result), .wb_load_data(wb_ldata),
             .wb_rs1_rdata(wb_rs1_rdata), .wb_rs2_rdata(wb_rs2_rdata),
             .wb_rf_wen(wb_rf_wen), .wb_rd_wsel(wb_rd_wsel),
+            .wb_dmem_addr(wb_dmem_addr), .wb_dmem_mask(wb_dmem_mask), .wb_dmem_ren(wb_dmem_ren), .wb_dmem_wen(wb_dmem_wen),
+            .wb_dmem_rdata(wb_dmem_rdata), .wb_dmem_wdata(wb_dmem_wdata),
             .wb_trap(wb_trap), .wb_halt(wb_halt)
         );
     
     //HAZARD:
         hazard_detect iHazard(
             .i_id_inst(id_instr),
-            .i_ex_rf_wen(ex_rf_wen), .i_ex_inst(ex_instr),
-            .i_mem_rf_wen(mem_rf_wen), .i_mem_inst(mem_instr),
-            .o_hazard(stall)
+            .i_ex_rf_wen(ex_valid && ex_rf_wen), .i_ex_inst(ex_instr),
+            .i_mem_rf_wen(mem_valid && mem_rf_wen), .i_mem_inst(mem_instr),
+            .o_hazard(raw_hazard)
         );
 
     ///////////////////////////////////////////////wiring//////////////////////////////////////
@@ -418,7 +442,14 @@ module hart #(
             endcase
         end
 
-        assign if_valid = 1'b1; //always on for 1st hazardless version
+        assign if_valid = 1'b1; 
+        //hazard
+        assign data_stall = id_valid && raw_hazard;                         //keep instruction in ID stage if there is a raw hazard
+        assign id_control = id_valid && (id_branch || id_jal || id_jalr);   //if the instruction in ID stage is a control instruction
+        assign ex_control_pending = ex_valid && (ex_branch || ex_jal || ex_jalr);
+        assign control_wait = id_control || ex_control_pending;     //prevent younger instructions from proceeding to ID while a control instruction is pending
+        assign ex_redirect = pc_sel == 2'b01 || pc_sel == 2'b10;    //allow pc to be redirected for taken branch or jump instructions
+        assign pc_stall = (data_stall || control_wait) && !ex_redirect;   //stall PC if there is a data hazard or control instruction is pending and no redirect is happening
 
         //pc mux
         assign pc_plus_4 = pc + 32'd4;
@@ -455,6 +486,12 @@ module hart #(
         assign o_retire_rd_wdata = wb_rd_wdata;
         assign o_retire_pc = wb_pc;
         assign o_retire_next_pc = wb_next_pc;
+        assign o_retire_dmem_addr = wb_dmem_addr;
+        assign o_retire_dmem_mask = wb_dmem_mask;
+        assign o_retire_dmem_ren = wb_valid && wb_dmem_ren;
+        assign o_retire_dmem_wen = wb_valid && wb_dmem_wen;
+        assign o_retire_dmem_rdata = wb_dmem_rdata;
+        assign o_retire_dmem_wdata = wb_dmem_wdata;
 endmodule
 
 `default_nettype wire

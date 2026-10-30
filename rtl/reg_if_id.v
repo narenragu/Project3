@@ -5,7 +5,8 @@ module reg_if_id (
     input wire if_valid,
     input wire [31:0] if_inst,
     input wire [31:0] if_pc,
-    input wire i_stall,
+    input wire i_stall,         //for raw hazards
+    input wire i_clear_valid,   
     
     output reg id_valid,
     output reg [31:0] id_inst,
@@ -16,7 +17,11 @@ module reg_if_id (
             id_valid <= 1'b0;
             id_inst <= 32'b0;       //maybe should be 32'h0013?
             id_pc <= 32'b0;     
-        end else if(!i_stall) begin
+        end else if(i_stall) begin
+            //hold current values
+        end else if(i_clear_valid) begin
+            id_valid <= 1'b0;
+        end else begin
             id_valid <= if_valid;
             id_inst <= if_inst;
             id_pc <= if_pc;

@@ -78,7 +78,7 @@ module reg_id_ex (
             ex_immediate <= 32'b0;
             ex_rs1_rdata <= 32'b0;
             ex_rs2_rdata <= 32'b0;
-        end else if(i_stall) begin
+        end else if(i_stall) begin      //hold while id waits for operands
             ex_valid <= 1'b0;
             ex_inst <= 32'h13; // addi x0, x0, 0
             ex_pc <= 32'b0;

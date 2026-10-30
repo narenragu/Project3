@@ -15,6 +15,13 @@ module reg_mem_wb (
     input wire [31:0] mem_rs1_rdata,
     input wire [31:0] mem_rs2_rdata,
 
+    input wire [31:0] mem_dmem_addr,
+    input wire [ 3:0] mem_dmem_mask,
+    input wire        mem_dmem_ren,
+    input wire        mem_dmem_wen,
+    input wire [31:0] mem_dmem_rdata,
+    input wire [31:0] mem_dmem_wdata,
+
     output reg wb_valid,
     output reg [31:0] wb_pc,
     output reg [31:0] wb_inst,
@@ -26,7 +33,14 @@ module reg_mem_wb (
     output reg [31:0] wb_alu_result,
     output reg [31:0] wb_load_data,
     output reg [31:0] wb_rs1_rdata,
-    output reg [31:0] wb_rs2_rdata
+    output reg [31:0] wb_rs2_rdata,
+
+    output reg [31:0] wb_dmem_addr,
+    output reg [ 3:0] wb_dmem_mask,
+    output reg        wb_dmem_ren,
+    output reg        wb_dmem_wen,
+    output reg [31:0] wb_dmem_rdata,
+    output reg [31:0] wb_dmem_wdata
 );
 
     always @(posedge i_clk) begin
@@ -43,6 +57,12 @@ module reg_mem_wb (
             wb_load_data <= 0;
             wb_rs1_rdata <= 0;
             wb_rs2_rdata <= 0;
+            wb_dmem_addr <= 0;
+            wb_dmem_mask <= 0;
+            wb_dmem_ren <= 0;
+            wb_dmem_wen <= 0;
+            wb_dmem_rdata <= 0;
+            wb_dmem_wdata <= 0;
         end else begin
             wb_valid <= mem_valid;
             wb_pc <= mem_pc;
@@ -56,6 +76,12 @@ module reg_mem_wb (
             wb_load_data <= mem_load_data;
             wb_rs1_rdata <= mem_rs1_rdata;
             wb_rs2_rdata <= mem_rs2_rdata;
+            wb_dmem_addr <= mem_dmem_addr;
+            wb_dmem_mask <= mem_dmem_mask;
+            wb_dmem_ren <= mem_dmem_ren;
+            wb_dmem_wen <= mem_dmem_wen;
+            wb_dmem_rdata <= mem_dmem_rdata;
+            wb_dmem_wdata <= mem_dmem_wdata;
         end
     end
 
