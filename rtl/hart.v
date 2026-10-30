@@ -174,8 +174,6 @@ module hart #(
         wire [31:0] id_rf_rs1;
         wire [31:0] id_rf_rs2;
 
-        //hazard detect (later)
-
         //id/ex reg
         wire ex_valid;
         wire [31:0] ex_pc;
@@ -218,11 +216,16 @@ module hart #(
         //pc + imm (branch/jal)
         wire [31:0] ex_pc_plus_imm;
 
+        //next pc (for retire)
+        wire [31:0] ex_next_pc;
+
         //ex/mem reg
         wire mem_valid;
         wire [31:0] mem_pc;
+        wire [31:0] mem_next_pc;
         wire [31:0] mem_instr;
         wire [31:0] mem_alu_result;
+        wire [31:0] mem_rs1_rdata;
         wire [31:0] mem_rs2_rdata;
         wire mem_dmem_ren;
         wire mem_dmem_wen;
@@ -244,12 +247,16 @@ module hart #(
         //mem/wb reg
         wire wb_valid;
         wire [31:0] wb_pc;
+        wire [31:0] wb_next_pc;
         wire [31:0] wb_instr;
         wire wb_trap;
         wire [1:0] wb_rd_wsel;
         wire wb_rf_wen;
         wire [31:0] wb_ldata;
         wire [31:0] wb_alu_result;
+        wire [31:0] wb_rs1_rdata;
+        wire [31:0] wb_rs2_rdata;
+        wire wb_halt;
 
     //WB:
         //register file write back data
@@ -332,13 +339,13 @@ module hart #(
         
         reg_ex_mem iRegEXMEM(
             .i_clk(i_clk), .i_rst(i_rst),
-            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_inst(ex_instr),
-            .ex_alu_result(ex_alu_result), .ex_rs2_data(ex_rs2_rdata),
+            .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_next_pc(ex_next_pc), .ex_inst(ex_instr),
+            .ex_alu_result(ex_alu_result), .ex_rs1_rdata(ex_rs1_rdata), .ex_rs2_rdata(ex_rs2_rdata),
             .ex_dmem_ren(ex_dmem_ren), .ex_dmem_wen(ex_dmem_wen),
             .ex_rf_wen(ex_rf_wen), .ex_rd_wsel(ex_rd_wsel),
             .ex_halt(ex_halt), .ex_trap(ex_trap),
-            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_inst(mem_instr),
-            .mem_alu_result(mem_alu_result), .mem_rs2_data(mem_rs2_rdata),
+            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_next_pc(mem_next_pc), .mem_inst(mem_instr),
+            .mem_alu_result(mem_alu_result), .mem_rs1_rdata(mem_rs1_rdata), .mem_rs2_data(mem_rs2_rdata),
             .mem_dmem_ren(mem_dmem_ren), .mem_dmem_wen(mem_dmem_wen),
             .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
             .mem_halt(mem_halt), .mem_trap(mem_trap)
@@ -361,14 +368,16 @@ module hart #(
 
         reg_mem_wb iRegMEMWB(
             .i_clk(i_clk), .i_rst(i_rst),
-            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_inst(mem_instr),
+            .mem_valid(mem_valid), .mem_pc(mem_pc), .mem_next_pc(mem_next_pc), .mem_inst(mem_instr),
             .mem_alu_result(mem_alu_result), .mem_load_data(mem_ldata),
+            .mem_rs1_rdata(mem_rs1_rdata), .mem_rs2_rdata(mem_rs2_rdata),
             .mem_rf_wen(mem_rf_wen), .mem_rd_wsel(mem_rd_wsel),
-            .mem_trap(mem_trap),
-            .wb_valid(wb_valid), .wb_pc(wb_pc), .wb_inst(wb_instr),
+            .mem_trap(mem_trap), .mem_halt(mem_halt),
+            .wb_valid(wb_valid), .wb_pc(wb_pc), .wb_next_pc(wb_next_pc), .wb_inst(wb_instr),
             .wb_alu_result(wb_alu_result), .wb_load_data(wb_ldata),
+            .wb_rs1_rdata(wb_rs1_rdata), .wb_rs2_rdata(wb_rs2_rdata),
             .wb_rf_wen(wb_rf_wen), .wb_rd_wsel(wb_rd_wsel),
-            .wb_trap(wb_trap)
+            .wb_trap(wb_trap), .wb_halt(wb_halt)
         );
     
     //HAZARD:
@@ -427,19 +436,25 @@ module hart #(
         assign o_dmem_ren = mem_dmem_ren && mem_valid && !mem_trap;
         assign o_dmem_wen = mem_dmem_wen && mem_valid && !mem_trap;
 
+        //retire next-PC
+        assign ex_next_pc =
+        (pc_sel == 2'b01) ? ex_pc_plus_imm :
+        (pc_sel == 2'b10) ? {ex_alu_result[31:1], 1'b0} :
+                        ex_pc + 32'd4;
+
         //retire
         assign o_retire_valid = wb_valid && !i_rst;
         assign o_retire_inst = wb_instr;
         assign o_retire_trap = wb_trap;
         assign o_retire_halt = wb_halt;
-        assign o_retire_rs1_raddr = mem_wb_instr[19:15];
-        assign o_retire_rs2_raddr = mem_wb_instr[24:20];
-        assign o_retire_rs1_rdata = rs1; // ?
-        assign o_retire_rs2_rdata = rs2; // ?
+        assign o_retire_rs1_raddr = wb_instr[19:15];
+        assign o_retire_rs2_raddr = wb_instr[24:20];
+        assign o_retire_rs1_rdata = wb_rs1_rdata; 
+        assign o_retire_rs2_rdata = wb_rs2_rdata; 
         assign o_retire_rd_waddr = (wb_rf_wen && wb_valid && !wb_trap) ? wb_instr[11:7] : 5'd0;
         assign o_retire_rd_wdata = wb_rd_wdata;
         assign o_retire_pc = wb_pc;
-        assign o_retire_next_pc = pc_nxt;
+        assign o_retire_next_pc = wb_next_pc;
 endmodule
 
 `default_nettype wire

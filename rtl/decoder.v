@@ -53,7 +53,7 @@ module decoder (
     wire i_jalr_legal = (funct3 == 3'b000);
     wire s_legal = (funct3 == 3'b000) | (funct3 == 3'b001) | (funct3 == 3'b010);
     wire b_legal = (funct3 != 3'b010) & (funct3 != 3'b011);
-    wire system_legal = (funct3 == 3'b000);
+    wire system_legal = (i_instr == 32'h00100073);
     
     wire legal = (opcode_r & r_legal) |
                  (opcode_i_alu & i_alu_legal) |

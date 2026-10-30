@@ -12,8 +12,8 @@ module reg_mem_wb (
     input wire mem_trap,
     input wire [31:0] mem_alu_result,
     input wire [31:0] mem_load_data,
-    input wire [31:0] mem_rs1_data,
-    input wire [31:0] mem_rs2_data,
+    input wire [31:0] mem_rs1_rdata,
+    input wire [31:0] mem_rs2_rdata,
 
     output reg wb_valid,
     output reg [31:0] wb_pc,
@@ -25,8 +25,8 @@ module reg_mem_wb (
     output reg wb_trap,
     output reg [31:0] wb_alu_result,
     output reg [31:0] wb_load_data,
-    output reg [31:0] wb_rs1_data,
-    output reg [31:0] wb_rs2_data
+    output reg [31:0] wb_rs1_rdata,
+    output reg [31:0] wb_rs2_rdata
 );
 
     always @(posedge i_clk) begin
@@ -41,8 +41,8 @@ module reg_mem_wb (
             wb_trap <= 0;
             wb_alu_result <= 0;
             wb_load_data <= 0;
-            wb_rs1_data <= 0;
-            wb_rs2_data <= 0;
+            wb_rs1_rdata <= 0;
+            wb_rs2_rdata <= 0;
         end else begin
             wb_valid <= mem_valid;
             wb_pc <= mem_pc;
@@ -54,8 +54,8 @@ module reg_mem_wb (
             wb_trap <= mem_trap;
             wb_alu_result <= mem_alu_result;
             wb_load_data <= mem_load_data;
-            wb_rs1_data <= mem_rs1_data;
-            wb_rs2_data <= mem_rs2_data;
+            wb_rs1_rdata <= mem_rs1_rdata;
+            wb_rs2_rdata <= mem_rs2_rdata;
         end
     end
 

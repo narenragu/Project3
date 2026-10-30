@@ -12,8 +12,8 @@ module reg_ex_mem (
     input wire ex_halt, 
     input wire ex_trap,
     input wire [31:0] ex_alu_result,
-    input wire [31:0] ex_rs1_data,
-    input wire [31:0] ex_rs2_data,
+    input wire [31:0] ex_rs1_rdata,
+    input wire [31:0] ex_rs2_rdata,
     input wire [31:0] ex_next_pc,
 
     output reg mem_valid,
@@ -26,8 +26,8 @@ module reg_ex_mem (
     output reg mem_halt,
     output reg mem_trap,
     output reg [31:0] mem_alu_result,
-    output reg [31:0] mem_rs1_data,
-    output reg [31:0] mem_rs2_data,
+    output reg [31:0] mem_rs1_rdata,
+    output reg [31:0] mem_rs2_rdata,
     output reg [31:0] mem_next_pc
 );
     always @ (posedge i_clk) begin
@@ -42,8 +42,8 @@ module reg_ex_mem (
             mem_halt <= 0;
             mem_trap <= 0;
             mem_alu_result <= 0;
-            mem_rs1_data <= 0;
-            mem_rs2_data <= 0;
+            mem_rs1_rdata <= 0;
+            mem_rs2_rdata <= 0;
             mem_next_pc <= 0;
         end else begin
             mem_valid <= ex_valid;
@@ -56,8 +56,8 @@ module reg_ex_mem (
             mem_halt <= ex_halt;
             mem_trap <= ex_trap;
             mem_alu_result <= ex_alu_result;
-            mem_rs1_data <= ex_rs1_data;
-            mem_rs2_data <= ex_rs2_data;
+            mem_rs1_rdata <= ex_rs1_rdata;
+            mem_rs2_rdata <= ex_rs2_rdata;
             mem_next_pc <= ex_next_pc;
         end
     end
