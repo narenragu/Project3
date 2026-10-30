@@ -76,6 +76,28 @@ module reg_id_ex (
             ex_immediate <= 32'b0;
             ex_rs1_rdata <= 32'b0;
             ex_rs2_rdata <= 32'b0;
+        end else if(i_stall) begin
+            ex_valid <= 1'b1;
+            ex_inst <= 32'h13; // addi x0, x0, 0
+            ex_pc <= 32'b0;
+            ex_op1_sel <= 2'b0;
+            ex_op2_sel <= 1'b1; // immediate
+            ex_alu_opsel <= 3'b0; // add
+            ex_alu_arith <= 1'b0;
+            ex_alu_sub <= 1'b0;
+            ex_alu_unsigned <= 1'b0;
+            ex_branch <= 1'b0;
+            ex_jal <= 1'b0;
+            ex_jalr <= 1'b0;
+            ex_dmem_ren <= 1'b0;
+            ex_dmem_wen <= 1'b0;
+            ex_rd_wsel <= 2'b0;
+            ex_rf_wen <= 1'b1;
+            ex_halt <= 1'b0;
+            ex_illegal <= 1'b0;
+            ex_immediate <= 32'b0; // 0
+            ex_rs1_rdata <= 32'b0; // 0
+            ex_rs2_rdata <= 32'bx;
         end else begin
             ex_valid <= id_valid;
             ex_inst <= id_inst;

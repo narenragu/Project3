@@ -255,16 +255,19 @@ module hart #(
         //register file write back data
         reg [31:0] wb_rd_wdata;
 
+    //HAZARD:
+        reg stall;
+
     ////////////////////////////////////////////////module instantiation///////////////////////////////////////////////
     //IF:
         pc #(.RESET_ADDR(RESET_ADDR)) iProgramCounter(
-            .i_clk(i_clk), .i_rst(i_rst), .i_pc_nxt(pc_nxt),
+            .i_clk(i_clk), .i_rst(i_rst), .i_pc_nxt(pc_nxt), .i_stall(stall),
             .o_pc(pc)
         );
 
         reg_if_id iRegIFID(
             .i_clk(i_clk), .i_rst(i_rst),
-            .if_valid(if_valid), .if_pc(pc), .if_instr(instr),
+            .if_valid(if_valid), .if_pc(pc), .if_inst(instr), .i_stall(stall),
             .id_valid(id_valid), .id_pc(id_pc), .id_instr(id_instr)
         );
 
@@ -300,6 +303,7 @@ module hart #(
             .id_dmem_ren(id_dmem_ren), .id_dmem_wen(id_dmem_wen),
             .id_rf_wen(id_rf_wen), .id_rd_wsel(id_rd_wsel),
             .id_rs1_rdata(id_rf_rs1), .id_rs2_rdata(id_rf_rs2),
+            .i_stall(stall),
             .id_halt(id_halt), .id_illegal(id_illegal),
             .ex_valid(ex_valid), .ex_pc(ex_pc), .ex_instr(ex_instr),
             .ex_op1_sel(ex_op1_sel), .ex_op2_sel(ex_op2_sel),
@@ -365,6 +369,14 @@ module hart #(
             .wb_alu_result(wb_alu_result), .wb_ldata(wb_ldata),
             .wb_rf_wen(wb_rf_wen), .wb_rd_wsel(wb_rd_wsel),
             .wb_trap(wb_trap)
+        );
+    
+    //HAZARD:
+        hazard_detect iHazard(
+            .i_id_inst(id_inst),
+            .i_ex_rf_wen(ex_rf_wen), .i_ex_inst(ex_instr),
+            .i_mem_rf_wen(mem_rf_wen), .i_mem_inst(mem_instr),
+            .o_hazard(stall)
         );
 
     ///////////////////////////////////////////////wiring//////////////////////////////////////
