@@ -276,13 +276,9 @@ module hart #(
         reg [31:0] wb_rd_wdata;
 
     //HAZARD:
-        wire raw_hazard;
         wire data_stall;
 
-        wire id_control;
-        wire ex_control_pending;
         wire control_wait;
-        wire ex_redirect;
         wire pc_stall;
 
     ////////////////////////////////////////////////module instantiation///////////////////////////////////////////////
@@ -406,10 +402,11 @@ module hart #(
     
     //HAZARD:
         hazard_detect iHazard(
-            .i_id_inst(id_instr),
-            .i_ex_rf_wen(ex_valid && ex_rf_wen), .i_ex_inst(ex_instr),
+            .i_id_valid(id_valid), .i_id_inst(id_instr), .i_id_branch(id_branch), .i_id_jal(id_jal), .i_id_jalr(id_jalr),
+            .i_ex_valid(ex_valid), .i_ex_rf_wen(ex_valid && ex_rf_wen), .i_ex_inst(ex_instr), .i_ex_branch(ex_branch), .i_ex_jal(ex_jal), .i_ex_jalr(ex_jalr),
             .i_mem_rf_wen(mem_valid && mem_rf_wen), .i_mem_inst(mem_instr),
-            .o_hazard(raw_hazard)
+            .i_pc_sel(pc_sel),
+            .o_data_stall(data_stall), .o_control_wait(control_wait), .o_pc_stall(pc_stall)
         );
 
     ///////////////////////////////////////////////wiring//////////////////////////////////////
@@ -443,13 +440,6 @@ module hart #(
         end
 
         assign if_valid = 1'b1; 
-        //hazard
-        assign data_stall = id_valid && raw_hazard;                         //keep instruction in ID stage if there is a raw hazard
-        assign id_control = id_valid && (id_branch || id_jal || id_jalr);   //if the instruction in ID stage is a control instruction
-        assign ex_control_pending = ex_valid && (ex_branch || ex_jal || ex_jalr);
-        assign control_wait = id_control || ex_control_pending;     //prevent younger instructions from proceeding to ID while a control instruction is pending
-        assign ex_redirect = pc_sel == 2'b01 || pc_sel == 2'b10;    //allow pc to be redirected for taken branch or jump instructions
-        assign pc_stall = (data_stall || control_wait) && !ex_redirect;   //stall PC if there is a data hazard or control instruction is pending and no redirect is happening
 
         //pc mux
         assign pc_plus_4 = pc + 32'd4;
